@@ -19,7 +19,17 @@ concurrency:
 
 jobs:
     Build:
-        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - { os: windows-latest, name: LeanCordInstaller-win.exe, bin: leancord-installer.exe }
+                    - { os: ubuntu-latest, name: LeanCordInstaller-linux, bin: leancord-installer }
+                    - { os: macos-latest, name: LeanCordInstaller-macos, bin: leancord-installer }
+        runs-on: ${{ matrix.os }}
+        defaults:
+            run:
+                shell: bash
         steps:
             - uses: actions/checkout@v4
 
@@ -28,27 +38,26 @@ jobs:
                   node-version: 22
                   cache: npm
 
-            - name: Install dependencies
-              run: npm ci
+            - run: npm ci
+            - run: npm run typecheck
+            - run: npm run build -- --minify
+            - name: Build installer
+              run: npm run installer:build
 
-            - name: Typecheck
-              run: npm run typecheck
+            - name: Rename
+              run: mv dist-installer/${{ matrix.bin }} dist-installer/${{ matrix.name }}
 
-            - name: Build
-              run: npm run build -- --minify
-
-            - name: Upload artifact
-              uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v4
               with:
-                  name: leancord-dist
-                  path: dist/
+                  name: ${{ matrix.name }}
+                  path: dist-installer/${{ matrix.name }}
 
-            - name: Publish DevBuild release
+            - name: Publish to DevBuild release
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   SHA: ${{ github.sha }}
               run: |
                   SHORT=${SHA::7}
                   gh release view devbuild >/dev/null 2>&1 || gh release create devbuild --prerelease --title "DevBuild $SHORT" --notes "Auto-build dari main" --target "$SHA"
-                  gh release upload devbuild --clobber dist/main.js dist/preload.js dist/renderer.js
+                  gh release upload devbuild --clobber dist-installer/${{ matrix.name }}
                   gh release edit devbuild --title "DevBuild $SHORT" --target "$SHA"

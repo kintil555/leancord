@@ -5,8 +5,26 @@ import { homedir } from "os";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const mainJs = join(root, "dist", "main.js");
+import * as sea from "node:sea";
+
+const IS_SEA = sea.isSea(); // true bila dijalankan sebagai installer .exe/binary mandiri
+const here = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
+const root = resolve(dirname(here), "..");
+
+const dataDir = process.platform === "win32" ? join(process.env.APPDATA ?? homedir(), "LeanCord")
+    : process.platform === "darwin" ? join(homedir(), "Library", "Application Support", "LeanCord")
+    : join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "LeanCord");
+
+// Mode installer mandiri: tulis bundle ke <dataDir>/dist, lalu inject ke sana.
+const distDir = IS_SEA ? join(dataDir, "dist") : join(root, "dist");
+const mainJs = join(distDir, "main.js");
+
+function extractBundle() {
+    mkdirSync(distDir, { recursive: true });
+    writeFileSync(join(distDir, "package.json"), '{ "type": "commonjs" }\n');
+    for (const f of ["main.js", "preload.js", "renderer.js"])
+        writeFileSync(join(distDir, f), Buffer.from(sea.getRawAsset(f)));
+}
 
 const BRANCHES = {
     stable: { win: "Discord", mac: "Discord", pkg: "discord", linux: ["discord"] },
@@ -90,7 +108,9 @@ function uninject({ resources }) {
 }
 
 // ---- CLI ----
-const [cmd, ...rest] = process.argv.slice(2);
+const args = process.argv.slice(2);
+if (IS_SEA && !args.length) args.push("inject"); // klik dua kali = pasang
+const [cmd, ...rest] = args;
 const flag = n => rest.includes(`--${n}`);
 const opt = n => { const i = rest.indexOf(`--${n}`); return i >= 0 ? rest[i + 1] : undefined; };
 
@@ -106,6 +126,8 @@ if (!targets.length) {
     console.error("Discord tidak ditemukan. Gunakan --path <folder instalasi Discord atau folder resources>.");
     process.exit(1);
 }
+
+if (cmd === "inject" && IS_SEA) extractBundle();
 
 if (cmd === "inject" && !existsSync(mainJs)) {
     console.error("dist/main.js belum ada. Jalankan: npm run build");
@@ -125,4 +147,8 @@ for (const t of targets) {
     }
 }
 if (cmd === "inject" && !failed) console.log("Tutup Discord sepenuhnya (termasuk tray) lalu buka lagi.");
-process.exit(failed ? 1 : 0);
+// Windows: jendela tertutup otomatis saat double-click, jadi tahan sebentar
+if (IS_SEA && process.platform === "win32" && !process.argv[2]) {
+    console.log("\nTekan Enter untuk menutup...");
+    process.stdin.once("data", () => process.exit(failed ? 1 : 0));
+} else process.exit(failed ? 1 : 0);

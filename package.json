@@ -11,13 +11,15 @@
     "uninject": "node scripts/installer.mjs uninject",
     "status": "node scripts/installer.mjs status",
     "addon": "node scripts/addon.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "installer:build": "node scripts/sea.mjs"
   },
   "devDependencies": {
     "@electron/asar": "^4.3.1",
     "@types/node": "^22.20.5",
     "electron": "^44.7.0",
     "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6",
     "typescript": "^7.0.2"
   }
 }

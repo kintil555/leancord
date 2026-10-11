@@ -4,7 +4,13 @@ Injector Discord desktop yang ringan, tanpa Vencord. Pola injeksinya sama dengan
 (patch `BrowserWindow` di main process + preload), tapi tanpa webpack patching dan tanpa React:
 renderer-nya ~16 KB. Fiturnya ditambah lewat **Addons**.
 
-## Pasang
+## Pasang (installer siap pakai)
+Unduh `LeanCordInstaller-win.exe` / `-linux` / `-macos` dari [Releases › devbuild](../../releases/tag/devbuild),
+jalankan (di Linux/macOS: `chmod +x` dulu; Windows: klik dua kali). Otomatis mencari Discord dan memasang.
+Lepas: `LeanCordInstaller-xxx uninject`. Installer mandiri hanya membawa addon bawaan; untuk import addon
+& Rebuild, pakai cara dari source di bawah.
+
+## Pasang (dari source)
 
 ```
 npm install          # (opsional) ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm install, tidak perlu binary Electron
