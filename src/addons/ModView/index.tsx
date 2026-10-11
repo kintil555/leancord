@@ -1,4 +1,4 @@
-import { addCss, defineAddon, defineSettings, getRoot, OptionType, toast } from "@lean";
+import { addCss, createStyle, defineAddon, defineSettings, getRoot, OptionType } from "@lean";
 
 import { type Chan, currentChannelId, currentGuildId, effective, getChannels, getMember, getRoles, guildInfo, type Member, missingStores, myId, searchMembers } from "./data";
 import { DANGEROUS, FLAGS, flagsOf, has, isRoleOw, kindOf, type Overwrite, P, type Role } from "./perms";
@@ -170,6 +170,11 @@ function render() {
     );
 }
 
+function openFor(userId: string) {
+    st.userId = userId; st.tab = "user"; st.q = "";
+    open();
+}
+
 function open() {
     if (panel) return render();
     st.open = true;
@@ -192,6 +197,65 @@ const onKey = (e: KeyboardEvent) => {
     else if (e.key === "Escape" && st.open) close();
 };
 
+// ---------- menu titik tiga di profil user ----------
+const menuStyle = createStyle("ModView-menu");
+const ID_RE = /^\d{15,25}$/;
+let last: { el: Element; t: number; } | null = null;
+let observer: MutationObserver | null = null;
+
+/** Cari user id dari props React di atas elemen yang diklik (popout profil, member list, dsb.) */
+function userIdFrom(el: Element | null): string | null {
+    for (let n: any = el; n; n = n.parentElement) {
+        const key = Object.keys(n).find(k => k.startsWith("__reactFiber$"));
+        if (!key) continue;
+        let f = n[key];
+        for (let d = 0; f && d < 40; d++, f = f.return) {
+            const p = f.memoizedProps;
+            const id = p?.user?.id ?? p?.userId ?? p?.member?.userId;
+            if (typeof id === "string" && ID_RE.test(id)) return id;
+        }
+        return null;
+    }
+    return null;
+}
+
+const onTrigger = (e: Event) => { if (e.target instanceof Element) last = { el: e.target, t: Date.now() }; };
+
+function injectItem(menu: Element) {
+    if (!last || Date.now() - last.t > 1000 || menu.querySelector("[data-modview]")) return;
+    const uid = userIdFrom(last.el);
+    if (!uid) return;
+    const items = menu.querySelectorAll('[role="menuitem"]');
+    const ref = items[items.length - 1] as HTMLElement | undefined;
+    if (!ref) return;
+    const item = ref.cloneNode(true) as HTMLElement; // cloneNode tidak membawa handler React milik item asli
+    item.removeAttribute("id"); item.removeAttribute("aria-label");
+    item.dataset.modview = "1";
+    const label = item.querySelector('[class*="label"]') ?? item;
+    label.textContent = "ModView";
+    item.querySelectorAll("svg, [class*='caret'], [class*='hint']").forEach(x => x.remove());
+    item.addEventListener("click", ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", keyCode: 27, bubbles: true })); // tutup menu
+        setTimeout(() => openFor(uid), 50);
+    });
+    ref.parentElement!.append(item);
+}
+
+function watchMenus() {
+    document.addEventListener("click", onTrigger, true);
+    document.addEventListener("contextmenu", onTrigger, true);
+    menuStyle.set(`[data-modview]{cursor:pointer}[data-modview]:hover{background:#5865f2 !important;color:#fff !important}[data-modview] *{color:inherit !important}`);
+    observer = new MutationObserver(muts => {
+        for (const m of muts) for (const n of m.addedNodes) {
+            if (!(n instanceof Element)) continue;
+            const menu = n.matches('[role="menu"]') ? n : n.querySelector('[role="menu"]');
+            if (menu) setTimeout(() => injectItem(menu), 0);
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
 let style: HTMLStyleElement | null = null;
 
 export default defineAddon({
@@ -208,10 +272,14 @@ export default defineAddon({
         fab = <button class="mv-fab" title="ModView (Ctrl+Shift+M)" onClick={() => st.open ? close() : open()}>🛡</button> as HTMLElement;
         if (settings.store.button) getRoot().append(fab);
         document.addEventListener("keydown", onKey, true);
+        watchMenus();
     },
 
     stop() {
         document.removeEventListener("keydown", onKey, true);
+        observer?.disconnect(); observer = null; menuStyle.remove();
+        document.removeEventListener("click", onTrigger, true); document.removeEventListener("contextmenu", onTrigger, true);
+        document.querySelectorAll("[data-modview]").forEach(x => x.remove());
         close(); fab?.remove(); style?.remove(); fab = style = null;
     }
 });
