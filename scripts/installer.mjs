@@ -129,46 +129,58 @@ function uninject({ resources }) {
 
 // ---- CLI ----
 const args = process.argv.slice(2);
-if (IS_SEA && !args.length) args.push("inject"); // klik dua kali = pasang
+const dblClick = IS_SEA && !args.length; // klik dua kali = pasang
+if (dblClick) args.push("inject");
 const [cmd, ...rest] = args;
 const flag = n => rest.includes(`--${n}`);
 const opt = n => { const i = rest.indexOf(`--${n}`); return i >= 0 ? rest[i + 1] : undefined; };
 
-if (!["inject", "uninject", "status"].includes(cmd)) {
-    console.log("Pemakaian: node scripts/installer.mjs <inject|uninject|status> [--branch stable|ptb|canary] [--path <folder Discord>] [--force]");
-    process.exit(1);
+/** Keluar; bila di-klik dua kali, tahan jendela supaya pesan sempat terbaca */
+function finish(code) {
+    if (dblClick && process.platform === "win32") {
+        console.log("\nTekan Enter untuk menutup...");
+        process.stdin.resume();
+        process.stdin.once("data", () => process.exit(code));
+    } else process.exit(code);
 }
 
-let targets = opt("path") ? fromPath(opt("path")) : discover();
-if (opt("branch")) targets = targets.filter(t => t.branch === opt("branch"));
-
-if (!targets.length) {
-    console.error("Discord tidak ditemukan. Gunakan --path <folder instalasi Discord atau folder resources>.");
-    process.exit(1);
-}
-
-if (cmd === "inject" && IS_SEA) extractBundle();
-
-if (cmd === "inject" && !existsSync(mainJs)) {
-    console.error("dist/main.js belum ada. Jalankan: npm run build");
-    process.exit(1);
-}
-
-let failed = false;
-for (const t of targets) {
-    try {
-        if (cmd === "inject") { inject(t, flag("force")); console.log(`[OK] Terpasang di ${t.resources}`); }
-        else if (cmd === "uninject") console.log(uninject(t) ? `[OK] Dihapus dari ${t.resources}` : `[--] Tidak terpasang: ${t.resources}`);
-        else console.log(`${isOurs(t.resources) && existsSync(origOf(t.resources)) ? "[ON] " : "[OFF]"} ${t.branch}: ${t.resources}`);
-    } catch (e) {
-        failed = true;
-        const hint = e.code === "EACCES" || e.code === "EPERM" ? " (butuh izin: coba jalankan dengan sudo/Administrator)" : "";
-        console.error(`[ERR] ${t.resources}: ${e.message}${hint}`);
+function main() {
+    if (!["inject", "uninject", "status"].includes(cmd)) {
+        console.log("Pemakaian: <inject|uninject|status> [--branch stable|ptb|canary] [--path <folder Discord>] [--force]");
+        return 1;
     }
+
+    let targets = opt("path") ? fromPath(opt("path")) : discover();
+    if (opt("branch")) targets = targets.filter(t => t.branch === opt("branch"));
+
+    if (!targets.length) {
+        console.error("Discord tidak ditemukan. Gunakan --path <folder instalasi Discord atau folder resources>.");
+        return 1;
+    }
+
+    if (cmd === "inject" && IS_SEA) extractBundle();
+
+    if (cmd === "inject" && !existsSync(mainJs)) {
+        console.error("dist/main.js belum ada. Jalankan: npm run build");
+        return 1;
+    }
+
+    let failed = false;
+    for (const t of targets) {
+        try {
+            if (cmd === "inject") { inject(t, flag("force")); console.log(`[OK] Terpasang di ${t.resources}`); }
+            else if (cmd === "uninject") console.log(uninject(t) ? `[OK] Dihapus dari ${t.resources}` : `[--] Tidak terpasang: ${t.resources}`);
+            else console.log(`${isOurs(t.resources) && existsSync(origOf(t.resources)) ? "[ON] " : "[OFF]"} ${t.branch}: ${t.resources}`);
+        } catch (e) {
+            failed = true;
+            const hint = e.code === "EACCES" || e.code === "EPERM" ? " (butuh izin: coba jalankan dengan sudo/Administrator)" : "";
+            console.error(`[ERR] ${t.resources}: ${e.message}${hint}`);
+        }
+    }
+    if (cmd === "inject" && !failed) console.log("Tutup Discord sepenuhnya (termasuk tray) lalu buka lagi.");
+    return failed ? 1 : 0;
 }
-if (cmd === "inject" && !failed) console.log("Tutup Discord sepenuhnya (termasuk tray) lalu buka lagi.");
-// Windows: jendela tertutup otomatis saat double-click, jadi tahan sebentar
-if (IS_SEA && process.platform === "win32" && !process.argv[2]) {
-    console.log("\nTekan Enter untuk menutup...");
-    process.stdin.once("data", () => process.exit(failed ? 1 : 0));
-} else process.exit(failed ? 1 : 0);
+
+let code = 1;
+try { code = main(); } catch (e) { console.error("[ERR]", e?.stack ?? e); }
+finish(code);
