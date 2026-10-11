@@ -36,12 +36,13 @@ Addon = folder berisi `index.tsx` (renderer) dan opsional `native.ts` (main proc
 3. **Manual**: taruh folder di `src/addons/<nama>/`, jalankan `npm run build`.
 
 Hapus: `npm run addon -- remove <nama>`. Daftar: `npm run addon -- list`.
+Addon bawaan lain: **ModView** (Ctrl+Shift+M atau tombol hijau 🛡): permission overwrite channel, izin user/role, daftar channel tersembunyi & read-only.
 Contoh template: `examples/HelloAddon/`. Addon bawaan: `src/addons/LeanDiscord/`.
 
 Tombol Rebuild butuh `node` di PATH.
 
 ## API addon (`import ... from "@lean"`)
-`defineAddon`, `defineSettings` + `OptionType` (BOOLEAN/STRING/NUMBER/SELECT/COMPONENT),
+`findStore` (akses Flux store Discord), `defineAddon`, `defineSettings` + `OptionType` (BOOLEAN/STRING/NUMBER/SELECT/COMPONENT),
 `defineNative<typeof import("./native")>()`, `createStyle(id)`, `toast()`, `addCss()`, JSX → DOM langsung.
 Di `native.ts`: `import { getAddonSettings } from "@main/settings"` untuk membaca setting saat startup
 (mis. flag Chromium yang harus dipasang sebelum app ready). Fungsi yang di-export otomatis bisa dipanggil

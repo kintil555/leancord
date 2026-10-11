@@ -4,3 +4,4 @@ export { defineNative } from "./native";
 export { addCss, getRoot, toast } from "./ui";
 export { Fragment, h } from "./jsx";
 export * from "./types";
+export { findStore, getWebpackRequire } from "./discord";
