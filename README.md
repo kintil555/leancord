@@ -21,7 +21,7 @@ Tutup Discord total (termasuk tray), buka lagi. Lepas dengan `npm run uninject`.
 Opsi: `--branch stable|ptb|canary`, `--force`. Cek status: `npm run status`.
 
 > Folder proyek ini harus tetap di tempatnya (injector memuat `dist/main.js` dari sini).
-> Jangan jalankan bersamaan dengan Vencord. Installer menolak jika `_app.asar` terdeteksi.
+> Jangan jalankan bersamaan dengan Vencord. Installer menolak jika `_app.asar` milik mod lain terdeteksi.
 
 ## Menu Addons
 Tombol **L** di pojok kanan bawah, atau **Ctrl+Shift+L**. Isinya: daftar addon, toggle on/off,
@@ -49,7 +49,8 @@ dari renderer; argumen pertamanya selalu event IPC.
 
 ## Struktur
 ```
-scripts/installer.mjs   inject / uninject / status
+scripts/installer.mjs   inject / uninject / status (metode Vencord: app.asar -> _app.asar + app.asar kecil)
+scripts/asar.mjs        penulis app.asar minimal
 scripts/build.mjs       esbuild: dist/main.js, preload.js, renderer.js (+ glob src/addons/*)
 src/main/               patcher, IPC, settings, import addon, persist setelah update Discord
 src/preload.ts          bridge `LeanNative`

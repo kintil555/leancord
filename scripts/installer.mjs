@@ -1,11 +1,11 @@
-// Installer LeanCord: menulis resources/app/{package.json,index.js} di folder Discord.
-// Electron memuat folder "app" lebih dulu daripada app.asar; patcher kita lalu memuat app.asar asli.
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+// Installer LeanCord (metode Vencord): app.asar asli -> _app.asar, lalu app.asar kecil yang me-require dist/main.js.
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 
 import * as sea from "node:sea";
+import { MARKER, writeAppAsar } from "./asar.mjs";
 
 const IS_SEA = sea.isSea(); // true bila dijalankan sebagai installer .exe/binary mandiri
 const here = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
@@ -79,32 +79,52 @@ function fromPath(p) {
 
 const guessBranch = p => /canary/i.test(p) ? "canary" : /ptb/i.test(p) ? "ptb" : "stable";
 
-const isOurs = appDir => {
-    try { return JSON.parse(readFileSync(join(appDir, "package.json"), "utf8")).leancord === true; } catch { return false; }
+const asarOf = r => join(r, "app.asar"), origOf = r => join(r, "_app.asar");
+
+/** app.asar milik kita = file kecil yang memuat marker (Vencord & lainnya tidak punya) */
+const isOurs = r => {
+    try { const f = asarOf(r); return statSync(f).size < 4096 && readFileSync(f, "latin1").includes(MARKER); } catch { return false; }
 };
 
-function inject({ branch, resources }, force) {
-    const appDir = join(resources, "app");
-    if (existsSync(join(resources, "_app.asar")))
-        throw new Error("Terdeteksi mod lain (_app.asar, mis. Vencord). Uninstall dulu agar tidak bentrok.");
-    if (existsSync(appDir) && !isOurs(appDir) && !force)
-        throw new Error(`${appDir} sudah ada dan bukan milik LeanCord (pakai --force untuk menimpa).`);
+/** Sisa instalasi versi lama (folder resources/app) — dihapus agar tidak bentrok */
+function cleanLegacy(r) {
+    const d = join(r, "app");
+    try { if (JSON.parse(readFileSync(join(d, "package.json"), "utf8")).leancord === true) rmSync(d, { recursive: true, force: true }); } catch { /* bukan milik kita */ }
+}
 
-    mkdirSync(appDir, { recursive: true });
-    writeFileSync(join(appDir, "package.json"), JSON.stringify({
-        name: BRANCHES[branch].pkg, // harus sama dengan nama asli supaya folder data user Discord tidak berubah
-        main: "index.js",
-        leancord: true
-    }, null, 2));
-    writeFileSync(join(appDir, "index.js"), `require(${JSON.stringify(mainJs)});\n`);
+const busy = e => e.code === "EBUSY" || e.code === "EPERM" || e.code === "EACCES"
+    ? Object.assign(e, { message: `${e.message} (tutup Discord sepenuhnya termasuk tray; atau jalankan sebagai Administrator/sudo)` }) : e;
+
+function unpatch(r) {
+    if (!existsSync(origOf(r))) return false;
+    if (!isOurs(r)) throw new Error(`${asarOf(r)} bukan milik LeanCord (mod lain, mis. Vencord?). Uninstall dulu.`);
+    try {
+        rmSync(asarOf(r), { force: true });
+        renameSync(origOf(r), asarOf(r));
+    } catch (e) { throw busy(e); }
+    return true;
+}
+
+function inject({ resources }, force) {
+    cleanLegacy(resources);
+    if (existsSync(origOf(resources))) {
+        if (!isOurs(resources) && !force)
+            throw new Error("Terdeteksi mod lain (_app.asar, mis. Vencord). Uninstall dulu, atau pakai --force.");
+        if (isOurs(resources)) unpatch(resources); // pasang ulang dari kondisi bersih
+        else rmSync(asarOf(resources), { force: true }), renameSync(origOf(resources), asarOf(resources));
+    }
+    try {
+        renameSync(asarOf(resources), origOf(resources));
+        writeAppAsar(asarOf(resources), mainJs);
+    } catch (e) {
+        if (!existsSync(asarOf(resources)) && existsSync(origOf(resources))) renameSync(origOf(resources), asarOf(resources));
+        throw busy(e);
+    }
 }
 
 function uninject({ resources }) {
-    const appDir = join(resources, "app");
-    if (!existsSync(appDir)) return false;
-    if (!isOurs(appDir)) throw new Error(`${appDir} bukan milik LeanCord, tidak dihapus.`);
-    rmSync(appDir, { recursive: true, force: true });
-    return true;
+    cleanLegacy(resources);
+    return unpatch(resources);
 }
 
 // ---- CLI ----
@@ -139,7 +159,7 @@ for (const t of targets) {
     try {
         if (cmd === "inject") { inject(t, flag("force")); console.log(`[OK] Terpasang di ${t.resources}`); }
         else if (cmd === "uninject") console.log(uninject(t) ? `[OK] Dihapus dari ${t.resources}` : `[--] Tidak terpasang: ${t.resources}`);
-        else console.log(`${isOurs(join(t.resources, "app")) ? "[ON] " : "[OFF]"} ${t.branch}: ${t.resources}`);
+        else console.log(`${isOurs(t.resources) && existsSync(origOf(t.resources)) ? "[ON] " : "[OFF]"} ${t.branch}: ${t.resources}`);
     } catch (e) {
         failed = true;
         const hint = e.code === "EACCES" || e.code === "EPERM" ? " (butuh izin: coba jalankan dengan sudo/Administrator)" : "";

@@ -7,9 +7,9 @@ import { settings } from "./settings";
 
 console.log("[LeanCord] Starting up...");
 
-// Electron menetapkan app path ke folder injector kita: <resources>/app
-// app.asar asli milik Discord ada satu level di atasnya
-const asarPath = join(app.getAppPath(), "..", "app.asar");
+// Sama seperti Vencord: installer memindah app.asar asli ke _app.asar, lalu menulis app.asar kecil yang me-require file ini.
+const asarName = require.main!.path.endsWith("app.asar") ? "_app.asar" : "app.asar";
+const asarPath = join(require.main!.path, "..", asarName);
 const discordPkg = require(join(asarPath, "package.json"));
 const discordMain = join(asarPath, discordPkg.main);
 require.main!.filename = discordMain;

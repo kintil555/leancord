@@ -1,7 +1,9 @@
 import { app } from "electron";
 import EventEmitter from "events";
-import { cpSync, existsSync, readdirSync } from "fs";
+import { existsSync, readdirSync, renameSync } from "fs";
 import { basename, dirname, join } from "path";
+
+import { writeAppAsar } from "../../scripts/asar.mjs";
 
 // Discord (Windows/Squirrel) membuat folder app-x.y.z baru tiap update.
 // Salin folder injector ke versi terbaru supaya LeanCord tetap aktif.
@@ -23,13 +25,13 @@ function patchLatest() {
         const latest = readdirSync(base).filter(n => /^app-\d/.test(n)).reduce((a, b) => newer(b, a) ? b : a, currentName);
         if (latest === currentName) return;
 
-        const src = join(current, "resources", "app");
         const resources = join(base, latest, "resources");
-        const dst = join(resources, "app");
-        if (!existsSync(src) || existsSync(dst) || !existsSync(join(resources, "app.asar"))) return;
+        const asar = join(resources, "app.asar"), orig = join(resources, "_app.asar");
+        if (!existsSync(join(current, "resources", "_app.asar")) || existsSync(orig) || !existsSync(asar)) return;
 
         console.info(`[LeanCord] Update Discord terdeteksi (${currentName} -> ${latest}), memasang ulang...`);
-        cpSync(src, dst, { recursive: true });
+        renameSync(asar, orig);
+        writeAppAsar(asar, join(__dirname, "main.js"));
     } catch (e) {
         console.error("[LeanCord] Gagal memasang ulang setelah update", e);
     }
