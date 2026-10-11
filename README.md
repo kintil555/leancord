@@ -6,7 +6,7 @@ renderer-nya ~16 KB. Fiturnya ditambah lewat **Addons**.
 
 ## Pasang (installer siap pakai)
 Unduh `LeanCordInstaller-win.exe` / `-linux` / `-macos` dari [Releases › devbuild](../../releases/tag/devbuild),
-jalankan (di Linux/macOS: `chmod +x` dulu; Windows: klik dua kali). Otomatis mencari Discord dan memasang.
+jalankan (di Linux/macOS: `chmod +x` dulu; Windows: klik dua kali). Terbuka jendela GUI: pilih instalasi Discord → Pasang / Lepas. Butuh Edge/Chrome (bawaan Windows). Dengan argumen (`inject`, `uninject`, `status`) berjalan sebagai CLI.
 Lepas: `LeanCordInstaller-xxx uninject`. Installer mandiri hanya membawa addon bawaan; untuk import addon
 & Rebuild, pakai cara dari source di bawah.
 
